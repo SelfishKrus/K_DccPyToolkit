@@ -1,2 +1,2 @@
 # BpyLibrary
-An add-on library of blender python for personal use.
+A python toolkit of different DCCs for personal use
