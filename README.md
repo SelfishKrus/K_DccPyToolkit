@@ -1,2 +1,2 @@
 # BpyLibrary
-A python toolkit of different DCCs for personal use
+A python toolkit of different DCCs (blender, houdini, maya etc.) for personal use
