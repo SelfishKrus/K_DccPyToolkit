@@ -2,11 +2,12 @@
 
 import bpy
 import bmesh
+import mathutils
 from mathutils import Vector, kdtree
 
-class OBJECT_OT_snap_curve_to_mesh(bpy.types.Operator):
-    bl_idname = "object.snap_curve_to_mesh"
-    bl_label = "Snap Curve to Mesh"
+class OBJECT_OT_rope_attacher(bpy.types.Operator):
+    bl_idname = "object.rope_attacher"
+    bl_label = "Rope Attacher"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -61,15 +62,25 @@ class OBJECT_OT_snap_curve_to_mesh(bpy.types.Operator):
         # Iterate over each spline in the curve
         for spline in curve_data.splines:
             # Iterate over each point in the spline
-            for point in spline.bezier_points:
-                # Find the closest point on the mesh to the curve point
-                co_global = curve_obj.matrix_world @ point.co
-                co, index, dist = kd.find(co_global)
-                
-                # Move the curve point to the location of the closest point on the mesh
-                point.co = curve_obj.matrix_world.inverted() @ co
-                point.handle_left = point.co + scale * (point.handle_left - point.co)
-                point.handle_right = point.co + scale * (point.handle_right - point.co)
+            if spline.type == 'BEZIER':
+                for point in spline.bezier_points:
+                    # Find the closest point on the mesh to the curve point
+                    co_global = curve_obj.matrix_world @ point.co
+                    co, index, dist = kd.find(co_global)
+                    
+                    # Move the curve point to the location of the closest point on the mesh
+                    point.co = curve_obj.matrix_world.inverted() @ co
+                    point.handle_left = point.co + scale * (point.handle_left - point.co)
+                    point.handle_right = point.co + scale * (point.handle_right - point.co)
+            else:
+                for point in spline.points:
+                    # Find the closest point on the mesh to the curve point
+                    co_global = curve_obj.matrix_world @ point.co
+                    co, index, dist = kd.find(co_global.xyz)
+                    
+                    # Move the curve point to the location of the closest point on the mesh
+                    co = mathutils.Vector((co[0], co[1], co[2], 1))
+                    point.co = curve_obj.matrix_world.inverted() @ co
 
         # Set the origin of the curve object to the center of its geometry
         bpy.context.view_layer.objects.active = curve_obj
@@ -88,9 +99,9 @@ class OBJECT_OT_snap_curve_to_mesh(bpy.types.Operator):
 
         return {'FINISHED'} 
 
-class OBJECT_PT_snap_curve_to_mesh(bpy.types.Panel):
-    bl_idname = "object.snap_curve_to_mesh_panel"
-    bl_label = "Snap Curve to Mesh"
+class OBJECT_PT_rope_attacher(bpy.types.Panel):
+    bl_idname = "object.rope_attacher_panel"
+    bl_label = "Rope Attacher"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'KrusTool'
@@ -103,11 +114,11 @@ class OBJECT_PT_snap_curve_to_mesh(bpy.types.Panel):
         layout.prop(context.scene, "offset")
         layout.prop(context.scene, "scale")
 
-        layout.operator("object.snap_curve_to_mesh")
+        layout.operator("object.rope_attacher")
 
 def register():
-    bpy.utils.register_class(OBJECT_OT_snap_curve_to_mesh)
-    bpy.utils.register_class(OBJECT_PT_snap_curve_to_mesh)
+    bpy.utils.register_class(OBJECT_OT_rope_attacher)
+    bpy.utils.register_class(OBJECT_PT_rope_attacher)
 
     bpy.types.Scene.curve_obj = bpy.props.PointerProperty(type=bpy.types.Object, name="Curve", description="Curve to snap to the mesh", poll=lambda self, obj: obj.type == 'CURVE')
     bpy.types.Scene.mesh_obj = bpy.props.PointerProperty(type=bpy.types.Object, name="Mesh", description="Mesh to snap the curve to", poll=lambda self, obj: obj.type == 'MESH')
@@ -115,8 +126,8 @@ def register():
     bpy.types.Scene.scale = bpy.props.FloatProperty(name="Scale", description="Scale factor", default=1.0)
 
 def unregister():
-    bpy.utils.unregister_class(OBJECT_OT_snap_curve_to_mesh)
-    bpy.utils.unregister_class(OBJECT_PT_snap_curve_to_mesh)
+    bpy.utils.unregister_class(OBJECT_OT_rope_attacher)
+    bpy.utils.unregister_class(OBJECT_PT_rope_attacher)
 
     del bpy.types.Scene.curve_obj
     del bpy.types.Scene.mesh_obj
