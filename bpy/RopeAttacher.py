@@ -12,92 +12,49 @@ class OBJECT_OT_rope_attacher(bpy.types.Operator):
 
     def execute(self, context):
         # pre
-        curve_obj = context.scene.curve_obj
-
-        mesh_obj_copy =context.scene.mesh_obj.copy()
-        mesh_obj_copy.data = context.scene.mesh_obj.data.copy()
-        bpy.context.collection.objects.link(mesh_obj_copy)  
-
-        offset = context.scene.offset
-        scale = context.scene.scale
-
-        # apply all transforms
-        curve_obj.select_set(True)
-        mesh_obj_copy.select_set(True)       
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        bpy.ops.object.select_all(action='DESELECT')
-
-        # Get the curve data
-        curve_data = curve_obj.data
-
-        # Offset the curve by extruding the mesh 
-        bpy.context.view_layer.objects.active = mesh_obj_copy
-        mesh_obj_copy.select_set(True)
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.extrude_region_shrink_fatten(MESH_OT_extrude_region={"use_normal_flip":False, "use_dissolve_ortho_edges":False, "mirror":False}, TRANSFORM_OT_shrink_fatten={"value":offset, "use_even_offset":False, "mirror":False, "use_proportional_edit":False, "proportional_edit_falloff":'SMOOTH', "proportional_size":1.1, "use_proportional_connected":False, "use_proportional_projected":False, "snap":False, "release_confirm":False, "use_accurate":False})
-        bpy.ops.mesh.select_all(action='INVERT')
-        bpy.ops.mesh.delete(type='VERT')
-        bpy.ops.object.editmode_toggle()
-        bpy.ops.object.select_all(action='DESELECT')
+        curve_obj = context.scene.curve_obj.copy()
+        mesh_obj = context.scene.mesh_obj
+        smooth_factor = context.scene.smooth_factor
+        smooth_iterations = context.scene.smooth_iterations
+        curve_extrude = context.scene.curve_extrude
+        curve_depth = context.scene.curve_depth
+        curve_cyclic = context.scene.curve_cyclic
 
 
-        # Create a bmesh from the mesh object
-        bm = bmesh.new()
-        bm.from_mesh(mesh_obj_copy.data)
-        bm.transform(mesh_obj_copy.matrix_world)
+        # link
+        bpy.context.collection.objects.link(curve_obj)
 
-        bm.faces.ensure_lookup_table()
-
-        # Create a kd-tree from the bmesh
-        size = len(bm.verts)
-        kd = kdtree.KDTree(size)
-
-        for i, v in enumerate(bm.verts):
-            v_co_global = mesh_obj_copy.matrix_world @ v.co
-            kd.insert(v_co_global, i)
-
-        kd.balance()
-
-        # Iterate over each spline in the curve
-        for spline in curve_data.splines:
-            # Iterate over each point in the spline
-            if spline.type == 'BEZIER':
-                for point in spline.bezier_points:
-                    # Find the closest point on the mesh to the curve point
-                    co_global = curve_obj.matrix_world @ point.co
-                    co, index, dist = kd.find(co_global)
-                    
-                    # Move the curve point to the location of the closest point on the mesh
-                    point.co = curve_obj.matrix_world.inverted() @ co
-                    point.handle_left = point.co + scale * (point.handle_left - point.co)
-                    point.handle_right = point.co + scale * (point.handle_right - point.co)
-            else:
-                for point in spline.points:
-                    # Find the closest point on the mesh to the curve point
-                    co_global = curve_obj.matrix_world @ point.co
-                    co, index, dist = kd.find(co_global.xyz)
-                    
-                    # Move the curve point to the location of the closest point on the mesh
-                    co = mathutils.Vector((co[0], co[1], co[2], 1))
-                    point.co = curve_obj.matrix_world.inverted() @ co
-
-        # Set the origin of the curve object to the center of its geometry
+        # select curve_obj
         bpy.context.view_layer.objects.active = curve_obj
         curve_obj.select_set(True)
-        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+        bpy.ops.object.make_single_user(object=True, obdata=True)
+
+        # add SHRINKWRAP modifier
+        bpy.ops.object.modifier_add(type='SHRINKWRAP')
+        bpy.context.object.modifiers["Shrinkwrap"].use_apply_on_spline = True
+        curve_obj.modifiers["Shrinkwrap"].target = mesh_obj
+        curve_obj.modifiers["Shrinkwrap"].offset = context.scene.offset
+
+        # add SMOOTH modifier
+        # bpy.ops.object.modifier_add(type='SMOOTH')
+        # curve_obj.modifiers["Smooth"].factor = smooth_factor
+        # curve_obj.modifiers["Smooth"].iterations = smooth_iterations
+
+        # apply modifier
+        bpy.ops.object.modifier_apply(modifier="Shrinkwrap")
+        # bpy.ops.object.modifier_apply(modifier="Smooth")
+
+        # curve params
+        curve_obj.data.dimensions = '3D'
+        bpy.context.object.data.extrude = curve_extrude
+        bpy.context.object.data.bevel_depth = curve_depth
+        bpy.context.object.data.splines[0].use_cyclic_u = curve_cyclic
+
+
+        # deselect all
         bpy.ops.object.select_all(action='DESELECT')
 
-        # Free the bmesh memory 
-        bm.free()
-
-        # delete the mesh object
-        bpy.context.view_layer.objects.active = mesh_obj_copy
-        mesh_obj_copy.select_set(True)
-        bpy.ops.object.delete(use_global=False, confirm=False)
-        bpy.ops.object.select_all(action='DESELECT')
-
-        return {'FINISHED'} 
+        return {'FINISHED'}
 
 class OBJECT_PT_rope_attacher(bpy.types.Panel):
     bl_idname = "object.rope_attacher_panel"
@@ -109,11 +66,28 @@ class OBJECT_PT_rope_attacher(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        layout.prop(context.scene, "curve_obj")
-        layout.prop(context.scene, "mesh_obj")
-        layout.prop(context.scene, "offset")
-        layout.prop(context.scene, "scale")
+        box0 = layout.box()
+        box0.label(text="Input Objects")
+        box0.prop(context.scene, "curve_obj")
+        box0.prop(context.scene, "mesh_obj")
 
+        box1 = layout.box()
+        box1.label(text="Skrinkwrap Params")
+        box1.prop(context.scene, "offset")
+
+        # box2 = layout.box()
+        # box2.label(text="Smooth Params")
+        # box2.prop(context.scene, "smooth_factor")
+        # box2.prop(context.scene, "smooth_iterations")
+
+        box3 = layout.box()
+        box3.label(text="Curve Params")
+        box3.prop(context.scene, "curve_depth")
+        box3.prop(context.scene, "curve_extrude")
+        box3.prop(context.scene, "curve_cyclic")
+        
+
+        # smooth 
         layout.operator("object.rope_attacher")
 
 def register():
@@ -122,8 +96,14 @@ def register():
 
     bpy.types.Scene.curve_obj = bpy.props.PointerProperty(type=bpy.types.Object, name="Curve", description="Curve to snap to the mesh", poll=lambda self, obj: obj.type == 'CURVE')
     bpy.types.Scene.mesh_obj = bpy.props.PointerProperty(type=bpy.types.Object, name="Mesh", description="Mesh to snap the curve to", poll=lambda self, obj: obj.type == 'MESH')
+    
     bpy.types.Scene.offset = bpy.props.FloatProperty(name="Offset", description="Offset distance", default=0.0)
-    bpy.types.Scene.scale = bpy.props.FloatProperty(name="Scale", description="Scale factor", default=1.0)
+    # bpy.types.Scene.smooth_factor = bpy.props.FloatProperty(name="Smooth Factor", description="Smooth factor", default=2.0)
+    # bpy.types.Scene.smooth_iterations = bpy.props.IntProperty(name="Smooth Iterations", description="Smooth iterations", default=20)
+
+    bpy.types.Scene.curve_depth = bpy.props.FloatProperty(name="Curve Depth", description="Curve depth", default=0.05)
+    bpy.types.Scene.curve_extrude = bpy.props.FloatProperty(name="Curve Extrude", description="Curve extrude", default=0.0)
+    bpy.types.Scene.curve_cyclic = bpy.props.BoolProperty(name="Curve Cyclic", description="Curve cyclic", default=False)
 
 def unregister():
     bpy.utils.unregister_class(OBJECT_OT_rope_attacher)
