@@ -11,8 +11,9 @@ def copy_and_link_object(context, original_obj):
         bpy.data.objects.remove(bpy.data.objects[copied_obj_name], do_unlink=True)
     
     # Copy the original object and its data
+    copied_data = original_obj.data.copy()
     copied_obj = original_obj.copy()
-    copied_obj.data = original_obj.data.copy()
+    copied_obj.data = copied_data
     copied_obj.name = copied_obj_name
     
     # Link the copied object to the current collection
