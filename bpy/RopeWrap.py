@@ -17,6 +17,9 @@ class OT_rope_wrap(bpy.types.Operator):
         merge_threshold = context.scene.merge_threshold
 
         curve_depth = context.scene.curve_depth
+        curve_extrude = context.scene.curve_extrude
+        curve_offset = context.scene.curve_offset
+        curve_tilt = context.scene.curve_tilt
 
         # select plane_obj
         bpy.context.view_layer.objects.active = plane_obj
@@ -47,8 +50,6 @@ class OT_rope_wrap(bpy.types.Operator):
         bpy.context.view_layer.objects.active = plane_obj
         plane_obj.select_set(True)
 
-
-
         # convex hull
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
@@ -72,11 +73,18 @@ class OT_rope_wrap(bpy.types.Operator):
         bm.free()
 
         # filter out the rim 
-        bpy.ops.mesh.edge_face_add()
+        # fill if more than 1 face 
+        bm = bmesh.from_edit_mesh(bpy.context.edit_object.data)
+        selected_faces = [f for f in bm.faces if f.select]
+        if len(selected_faces) > 1:
+            bpy.ops.mesh.edge_face_add()
+        bm.free()
+        
+        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='FACE')
         bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='VERT')
         bpy.ops.mesh.select_all(action='INVERT')
         bpy.ops.mesh.delete(type='VERT')
-
+ 
         # filp normal 
         bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.mesh.flip_normals()
@@ -89,29 +97,33 @@ class OT_rope_wrap(bpy.types.Operator):
         bpy.ops.mesh.remove_doubles(threshold=merge_threshold/3)
 
         # convert to curve 
-        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.convert(target='CURVE')
-        bpy.ops.object.editmode_toggle()
+
+        bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.curve.select_all(action='SELECT')
         bpy.ops.curve.spline_type_set(type='NURBS')
-        bpy.ops.object.editmode_toggle()
-
-        # align with surface normal 
-        # find closest face 
-        # kd = kdtree.KDTree(len(target_obj.data.polygons))
-        
+        bpy.ops.object.mode_set(mode='OBJECT')
 
         curve_obj = bpy.context.object
+
+        # curve params 
         curve_obj.data.dimensions = '3D'
         bpy.context.object.data.resolution_u = 4
-        curve_obj.data.offset = -curve_depth / 2
+        curve_obj.data.offset = -curve_depth * 1.1 + curve_offset 
         curve_obj.data.bevel_depth = curve_depth
+        curve_obj.data.extrude = curve_extrude
         bpy.ops.object.shade_smooth()
 
+        for spline in curve_obj.data.splines:
+            for point in spline.points:
+                point.tilt = curve_tilt
+
+        bpy.context.object.display_type = 'TEXTURED'
 
         # deselect all
-        # bpy.ops.object.mode_set(mode='OBJECT')
-        # bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.select_all(action='DESELECT')
 
         return {'FINISHED'}
 
@@ -139,6 +151,9 @@ class PT_rope_wrap(bpy.types.Panel):
         box2 = layout.box()
         box2.label(text="Curve Params")
         box2.prop(context.scene, "curve_depth")
+        box2.prop(context.scene, "curve_extrude")
+        box2.prop(context.scene, "curve_offset")
+        box2.prop(context.scene, "curve_tilt")
 
         row = layout.row()
         row.operator("object.rope_wrap")
@@ -156,7 +171,10 @@ def register():
     bpy.types.Scene.merge_threshold = bpy.props.FloatProperty(name="Merge Threshold", default=0.01, description="Threshold for merging vertices", precision=5, min=0, update=update_property)
     bpy.types.Scene.bevel_offset = bpy.props.FloatProperty(name="Bevel Offset", default=0.1, description="Offset of the bevel modifier", precision=5, min=0, update=update_property)
 
-    bpy.types.Scene.curve_depth = bpy.props.FloatProperty(name="Curve Depth", default=0.1, description="Depth of the curve", min=0, update=update_property)
+    bpy.types.Scene.curve_depth = bpy.props.FloatProperty(name="Curve Depth", default=0.1, description="Depth of the curve", min=0, precision=5, update=update_property)
+    bpy.types.Scene.curve_offset = bpy.props.FloatProperty(name="Curve Offset", default=0.1, precision=5, description="Offset of the curve", update=update_property)
+    bpy.types.Scene.curve_tilt = bpy.props.FloatProperty(name="Curve Tilt", default=0, precision=5, description="Tilt of the curve", update=update_property)
+    bpy.types.Scene.curve_extrude = bpy.props.FloatProperty(name="Curve Extrude", default=0.1, description="Extrude of the curve", precision=5, update=update_property)
 
 def unregister():
     bpy.utils.unregister_class(OT_rope_wrap)
