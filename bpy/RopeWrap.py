@@ -19,7 +19,8 @@ class OT_rope_wrap(bpy.types.Operator):
         curve_depth = context.scene.curve_depth
         curve_extrude = context.scene.curve_extrude
         curve_offset = context.scene.curve_offset
-        curve_tilt = context.scene.curve_tilt
+        # degrees to radians 
+        curve_tilt = context.scene.curve_tilt * 3.14159 / 180
 
         # select plane_obj
         bpy.context.view_layer.objects.active = plane_obj
@@ -173,8 +174,8 @@ def register():
 
     bpy.types.Scene.curve_depth = bpy.props.FloatProperty(name="Curve Depth", default=0.1, description="Depth of the curve", min=0, precision=5, update=update_property)
     bpy.types.Scene.curve_offset = bpy.props.FloatProperty(name="Curve Offset", default=0.1, precision=5, description="Offset of the curve", update=update_property)
-    bpy.types.Scene.curve_tilt = bpy.props.FloatProperty(name="Curve Tilt", default=0, precision=5, description="Tilt of the curve", update=update_property)
-    bpy.types.Scene.curve_extrude = bpy.props.FloatProperty(name="Curve Extrude", default=0.1, description="Extrude of the curve", precision=5, update=update_property)
+    bpy.types.Scene.curve_tilt = bpy.props.IntProperty(name="Curve Tilt", default=90, step=1, description="Tilt of the curve", update=update_property)
+    bpy.types.Scene.curve_extrude = bpy.props.FloatProperty(name="Curve Extrude", default=0.1, description="Extrude of the curve", precision=5, min = 0, update=update_property)
 
 def unregister():
     bpy.utils.unregister_class(OT_rope_wrap)
