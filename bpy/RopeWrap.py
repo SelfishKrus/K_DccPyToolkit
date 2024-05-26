@@ -1,5 +1,6 @@
 import bpy
 import bmesh
+import time 
 from mathutils import Vector, kdtree
 
 import KrusUtilities as ku
@@ -122,12 +123,27 @@ class OT_rope_wrap(bpy.types.Operator):
 
         bpy.context.object.display_type = 'TEXTURED'
 
-        # deselect all
         bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.ops.object.select_all(action='DESELECT')
+
+        # save curve_obj name 
+        context.scene['curve_obj_name'] = curve_obj.name
 
         return {'FINISHED'}
 
+class OT_rope_save(bpy.types.Operator):
+    bl_idname = "object.rope_save"
+    bl_label = "Save Rope"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        # execute OT_rope_wrap
+        bpy.ops.object.rope_wrap()
+        # rename curve_obj
+        curve_obj = bpy.data.objects[context.scene['curve_obj_name']]
+        timestamp = str(int(time.time()))
+        curve_obj.name += "_" + timestamp
+
+        return {'FINISHED'}
 
 class PT_rope_wrap(bpy.types.Panel):
     bl_label = "Rope Wrap Panel"
@@ -157,7 +173,7 @@ class PT_rope_wrap(bpy.types.Panel):
         box2.prop(context.scene, "curve_tilt")
 
         row = layout.row()
-        row.operator("object.rope_wrap")
+        row.operator("object.rope_save")
 
 def update_property(self, context):
     bpy.ops.object.rope_wrap()
@@ -165,6 +181,7 @@ def update_property(self, context):
 def register():
     bpy.utils.register_class(OT_rope_wrap)
     bpy.utils.register_class(PT_rope_wrap)
+    bpy.utils.register_class(OT_rope_save)
 
     bpy.types.Scene.plane_obj = bpy.props.PointerProperty(type=bpy.types.Object, name="Plane", description="Plane to wrap around the target", poll=lambda self, obj: obj.type == 'MESH')
     bpy.types.Scene.target_obj = bpy.props.PointerProperty(type=bpy.types.Object, name="Target", description="Object to wrap the plane around", poll=lambda self, obj: obj.type == 'MESH')
@@ -180,6 +197,7 @@ def register():
 def unregister():
     bpy.utils.unregister_class(OT_rope_wrap)
     bpy.utils.unregister_class(PT_rope_wrap)
+    bpy.utils.unregister_class(OT_rope_save)
 
     del bpy.types.Scene.plane_obj
     del bpy.types.Scene.target_obj
