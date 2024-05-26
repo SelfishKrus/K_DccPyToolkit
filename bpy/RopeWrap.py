@@ -146,6 +146,35 @@ class OT_rope_save(bpy.types.Operator):
         curve_obj = bpy.data.objects[context.scene['curve_obj_name']]
         timestamp = str(int(time.time()))
         curve_obj.name += "_" + timestamp
+        
+        # select curve_obj
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.view_layer.objects.active = curve_obj
+        curve_obj.select_set(True)
+        bpy.ops.object.convert(target='MESH')
+
+        # unwrap uv 
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.smart_project(angle_limit=1.0472, margin_method='SCALED', rotate_method='AXIS_ALIGNED_Y', correct_aspect=True)
+        # set the first face as active face
+        bm = bmesh.from_edit_mesh(bpy.context.edit_object.data)
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bm.faces.ensure_lookup_table()  # Update the face table
+        bm.faces[0].select = True  # Select the first face
+        bm.faces.active = bm.faces[0]
+        bmesh.update_edit_mesh(bpy.context.edit_object.data)
+        # unwrap uv 
+        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='FACE')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.follow_active_quads(mode='LENGTH_AVERAGE')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # decimate co-planar faces
+        bpy.ops.object.modifier_add(type='DECIMATE')
+        bpy.context.object.modifiers["Decimate"].decimate_type = 'DISSOLVE'
+        bpy.context.object.modifiers["Decimate"].angle_limit = 0.0872665
+        bpy.ops.object.modifier_apply(modifier="Decimate")
 
         return {'FINISHED'}
 
