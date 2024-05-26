@@ -124,6 +124,10 @@ class OT_rope_wrap(bpy.types.Operator):
         bpy.context.object.display_type = 'TEXTURED'
 
         bpy.ops.object.mode_set(mode='OBJECT')
+        #select context.scene.plane_obj only
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.view_layer.objects.active = context.scene.plane_obj
+        context.scene.plane_obj.select_set(True)
 
         # save curve_obj name 
         context.scene['curve_obj_name'] = curve_obj.name
