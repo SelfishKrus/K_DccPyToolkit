@@ -172,8 +172,11 @@ class PT_rope_wrap(bpy.types.Panel):
         box2.prop(context.scene, "curve_offset")
         box2.prop(context.scene, "curve_tilt")
 
-        row = layout.row()
-        row.operator("object.rope_save")
+        # blank line
+        layout.separator()
+        layout.separator()
+        layout.operator("object.rope_wrap")
+        layout.operator("object.rope_save")
 
 def update_property(self, context):
     bpy.ops.object.rope_wrap()
