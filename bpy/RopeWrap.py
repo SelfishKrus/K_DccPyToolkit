@@ -208,8 +208,8 @@ class PT_rope_wrap(bpy.types.Panel):
         # blank line
         layout.separator()
         layout.separator()
-        layout.operator("object.rope_wrap")
-        layout.operator("object.rope_save")
+        layout.operator("object.rope_wrap", text="Rope Wrap - Preview")
+        layout.operator("object.rope_save", text="Rope Wrap - Bake")
 
 def update_property(self, context):
     bpy.ops.object.rope_wrap()
