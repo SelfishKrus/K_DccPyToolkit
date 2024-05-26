@@ -17,6 +17,6 @@ wrap a rope around an object based on Shrinkwrap modifier
 
 ### RopeWrap
 
-https://github.com/SelfishKrus/K_DccPyToolkit/assets/79186991/2b461caa-fbc5-4f73-bdf4-0a0f26c457f8
+https://github.com/SelfishKrus/K_DccPyToolkit/assets/79186991/795a10ef-46cd-42cc-91a0-651a30059fc6
 
-rubber-band-like-wrap-around by Boolean Intersection and curve etc.
+rubber-band-like-wrap-around by Boolean Intersection and curve etc, with optimized uv and topology.
