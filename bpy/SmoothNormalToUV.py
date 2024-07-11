@@ -42,7 +42,6 @@ class SmoothNormalToUVOperator(bpy.types.Operator):
 
         # Save original normals of the target object
         if target_object and target_object.type == 'MESH':
-            mesh = target_object.data
             bm_original = bmesh.new()
             bm_original.from_mesh(mesh)
             
@@ -70,7 +69,6 @@ class SmoothNormalToUVOperator(bpy.types.Operator):
 
         # Save modified normals of the target object
         if target_object and target_object.type == 'MESH':
-            mesh = target_object.data
             bm_modified = bmesh.new()
             bm_modified.from_mesh(mesh)
             
@@ -88,68 +86,75 @@ class SmoothNormalToUVOperator(bpy.types.Operator):
 
         # Recover original normals of the target object
         if target_object and target_object.type == 'MESH' and bm_original:
-            mesh = target_object.data
             bm_original.to_mesh(mesh)
+            target_object.data.update()
+
             print(f"Restore original normals of {target_object.name}.")
         else:
             print("No valid mesh object selected or bm_original is None.")
 
-        # Ensure the active object is a mesh
-        target_object = bpy.context.active_object
         if target_object and target_object.type == 'MESH':
+
             mesh = target_object.data
 
             # Ensure the mesh has a vertex color layer
             if not mesh.vertex_colors:
                 mesh.vertex_colors.new()
 
-            # Access the active vertex color layer
-            color_layer = mesh.vertex_colors.active.data
+            # Access third uv of target object
+            uv_layer = mesh.uv_layers[2]
+
+            # get first uv map name of target object
+            uv_map_name = mesh.uv_layers[0].name
 
             # Calculate tangents using the Mesh object
-            mesh.calc_tangents()
+            mesh.calc_tangents(uvmap=uv_map_name)
+            print(f"uv_map_name {uv_map_name}")
 
             tangents = [None] * len(mesh.loops)
             bitangents = [None] * len(mesh.loops)
             normals = [None] * len(mesh.loops)
+            bitangent_signs = [None] * len(mesh.loops)
+
+            print(f"mesh.loops: {len(mesh.loops)}")
 
             for loop in mesh.loops:
-                tangents[loop.index] = loop.tangent
-                bitangents[loop.index] = loop.bitangent
-                normals[loop.index] = loop.normal
 
-            # Create a dictionary to store the transformed normals for each vertex
-            transformed_normals = {}
+                tangents[loop.index] = loop.tangent.normalized()
+                bitangents[loop.index] = loop.bitangent.normalized()
+                normals[loop.index] = loop.normal.normalized()
+                bitangent_signs[loop.index] = loop.bitangent_sign
 
+            bm_modified.verts.ensure_lookup_table()
+            bm_modified.faces.ensure_lookup_table()
+
+            print (f"bm_modified.faces: {len(bm_modified.faces)}")
             for face in bm_modified.faces:
+                print(f"face.loops: {len(face.loops)}")
                 for loop in face.loops:
                     vert_index = loop.vert.index
+                    print(f"vert_index: {vert_index}")
+                    
                     normal = loop.vert.normal
 
-                    # Access tangent space basis
+                    # # Access tangent space basis
                     tangent = tangents[loop.index]
-                    bitangent = bitangents[loop.index]
                     normal_basis = normals[loop.index]
+                    # bitangent = normal_basis.cross(tangent) * bitangent_signs[loop.index]
+                    bitangent = bitangents[loop.index]
 
-                    # Create a matrix from tangent space basis
-                    tangent_matrix = mathutils.Matrix((tangent, bitangent, normal_basis)).transposed()
+                    # transform
+                    transformed_normal = mathutils.Vector((0, 0, 0))
+                    transformed_normal.x = normal.dot(tangent)
+                    transformed_normal.y = normal.dot(normal_basis)
+                    transformed_normal.z = normal.dot(bitangent)
+                    transformed_normal.normalize()
 
-                    # Transform the normal into tangent space
-                    transformed_normal = tangent_matrix @ normal
+                    # Store transformed_normal in uv_layer
+                    uv_layer.data[loop.index].uv = transformed_normal.xy
+                    print(f"uv_layer.data length {len(uv_layer.data)}")
 
-                    # Store the transformed normal in the dictionary
-                    transformed_normals[vert_index] = transformed_normal
-
-            # Assign the transformed normals to the vertex color layer
-            for loop in mesh.loops:
-                vert_index = loop.vertex_index
-                transformed_normal = transformed_normals[vert_index]
-                color_layer[loop.index].color = (
-                    transformed_normal.x * 0.5 + 0.5,
-                    transformed_normal.y * 0.5 + 0.5,
-                    transformed_normal.z * 0.5 + 0.5,
-                    1.0  # Full opacity
-                )
+                    print(f"loop.index: {loop.index}")
 
             print(f"Saved transformed normals of {target_object.name} to the vertex color layer.")
         else:
